@@ -21,15 +21,18 @@
 
           <template v-if="quizSettings.mode === 'normal'">
             <el-form-item label="题目数量">
-              <el-slider
-                v-model="quizSettings.count"
-                :min="5"
-                :max="30"
-                :step="5"
-                show-stops
-                :disabled="quizSettings.allQuestions"
-              />
-              <span class="slider-value">{{ quizSettings.allQuestions ? '当前筛选下全部考题' : `${quizSettings.count} 题` }}</span>
+              <el-radio-group v-model="quizSettings.count" class="count-options">
+                <el-radio-button :label="5">5 题</el-radio-button>
+                <el-radio-button :label="10">10 题</el-radio-button>
+                <el-radio-button :label="15">15 题</el-radio-button>
+                <el-radio-button :label="20">20 题</el-radio-button>
+                <el-radio-button :label="25">25 题</el-radio-button>
+                <el-radio-button :label="30">30 题</el-radio-button>
+                <el-radio-button label="all">全部</el-radio-button>
+              </el-radio-group>
+              <span class="slider-value">
+                {{ quizSettings.count === 'all' ? '当前筛选条件下全部题目' : `${quizSettings.count} 题` }}
+              </span>
             </el-form-item>
 
             <el-form-item label="题目分类">
@@ -43,17 +46,6 @@
               </el-select>
             </el-form-item>
 
-            <el-form-item label="考题范围">
-              <el-switch
-                v-model="quizSettings.allQuestions"
-                active-text="全部考题"
-                inactive-text="随机抽题"
-              />
-              <span class="range-tip">
-                {{ quizSettings.allQuestions ? '将测试当前分类、题型下的全部题目' : '从当前分类、题型中随机抽题' }}
-              </span>
-            </el-form-item>
-
             <el-form-item label="题目类型">
               <el-radio-group v-model="quizSettings.type">
                 <el-radio label="">全部</el-radio>
@@ -62,22 +54,6 @@
                 <el-radio label="fill">填空题</el-radio>
               </el-radio-group>
             </el-form-item>
-
-            <div class="category-all-panel">
-              <div class="category-all-title">按分类进行全部考题测试</div>
-              <div class="category-all-grid">
-                <button
-                  v-for="cat in categories"
-                  :key="cat"
-                  type="button"
-                  class="category-all-card"
-                  @click="startCategoryAllQuiz(cat)"
-                >
-                  <span>{{ getCategoryName(cat) }}</span>
-                  <small>全部考题</small>
-                </button>
-              </div>
-            </div>
           </template>
 
           <template v-else>
@@ -113,7 +89,7 @@
             @click="startQuiz"
             :disabled="quizSettings.mode === 'wrong' && wrongQuestions.length === 0"
           >
-            {{ quizSettings.mode === 'wrong' ? '开始错题复习' : (quizSettings.allQuestions ? '开始全部考题测试' : '开始测验') }}
+            {{ quizSettings.mode === 'wrong' ? '开始错题复习' : '开始测验' }}
           </el-button>
         </div>
 
@@ -344,6 +320,9 @@ const categoryNames: Record<string, string> = {
   search: '搜索查找',
   shell: 'Shell脚本',
   mysql: 'MySQL学习',
+  nginx: 'Nginx 学习',
+  redis: 'Redis 学习',
+  docker: 'Docker 学习',
 }
 
 // Wrong question storage
@@ -460,10 +439,9 @@ const score = ref(0)
 const resultsVisible = ref(false)
 
 const quizSettings = reactive({
-  count: 10,
+  count: 10 as number | 'all',
   category: '',
   type: '',
-  allQuestions: false,
   mode: 'normal' as 'normal' | 'wrong',
 })
 
@@ -547,10 +525,9 @@ async function startQuiz() {
     } else {
       // Normal quiz
       const res = await getQuizQuestions({
-        count: quizSettings.allQuestions ? undefined : quizSettings.count,
+        count: quizSettings.count,
         category: quizSettings.category || undefined,
         type: quizSettings.type || undefined,
-        all: quizSettings.allQuestions,
       })
       questions.value = res.data.data
       reviewMode.value = false
@@ -572,14 +549,6 @@ async function startQuiz() {
   } finally {
     loading.value = false
   }
-}
-
-function startCategoryAllQuiz(category: string) {
-  quizSettings.mode = 'normal'
-  quizSettings.category = category
-  quizSettings.type = ''
-  quizSettings.allQuestions = true
-  startQuiz()
 }
 
 function resetQuestionState() {
@@ -755,63 +724,23 @@ function goBack() {
 }
 
 .slider-value {
-  margin-left: 16px;
+  display: inline-flex;
+  margin-top: 12px;
   color: #3370ff;
   font-weight: 500;
 }
 
-.range-tip {
-  margin-left: 12px;
-  color: #909399;
-  font-size: 13px;
+.count-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.category-all-panel {
-  margin: 8px 0 4px;
-  padding: 14px;
-  border: 1px solid #ebeef5;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
-}
-
-.category-all-title {
-  margin-bottom: 12px;
-  color: #303133;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.category-all-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-}
-
-.category-all-card {
-  border: 1px solid #d9ecff;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #303133;
-  cursor: pointer;
-  padding: 12px;
-  text-align: left;
-  transition: all 0.2s;
-}
-
-.category-all-card:hover {
-  border-color: #409eff;
-  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.12);
-  transform: translateY(-2px);
-}
-
-.category-all-card span {
-  display: block;
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.category-all-card small {
-  color: #409eff;
+.count-options :deep(.el-radio-button__inner) {
+  border-radius: 999px !important;
+  padding: 10px 14px !important;
+  border-left: 1px solid var(--el-border-color) !important;
+  box-shadow: none !important;
 }
 
 .settings-actions {

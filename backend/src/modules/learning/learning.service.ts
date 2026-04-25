@@ -274,8 +274,9 @@ export class LearningService {
     }
   }
 
-  getQuizQuestions(countValue: string | undefined, category?: string, type?: string, includeAll = false) {
-    const count = parseInt(countValue || '10', 10) || 10
+  getQuizQuestions(countValue: string | undefined, category?: string, type?: string) {
+    const includeAll = countValue === 'all'
+    const count = includeAll ? Number.MAX_SAFE_INTEGER : (parseInt(countValue || '10', 10) || 10)
     let questions = learningRepository.getAllQuestions()
 
     if (category) {

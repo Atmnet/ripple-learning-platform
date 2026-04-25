@@ -2,262 +2,247 @@
   <div class="exam-create">
     <section class="module-heading">
       <div>
-        <h1>{{ isEdit ? '编辑考试' : '创建考试' }}</h1>
-        <p>设置考试时间、及格线、参与学员和题目来源，保存后会进入考试管理列表继续发布与维护。</p>
+        <h1>{{ isEditMode ? '编辑考试' : '创建考试' }}</h1>
+        <p>设置考试时间、时长、及格分数和题目来源，支持指定学员参加，并可从 Nginx、Redis、Docker 等分类中选题。</p>
       </div>
       <div class="heading-actions">
         <el-button @click="goBack">返回考试管理</el-button>
       </div>
     </section>
 
-    <el-form ref="formRef" :model="examForm" :rules="rules" label-width="120px" class="exam-form">
-      <el-card class="form-section" shadow="never">
+    <div class="layout-grid">
+      <el-card class="form-card" shadow="never">
         <template #header>
-          <span>基本信息</span>
-        </template>
-
-        <el-form-item label="考试名称" prop="title">
-          <el-input
-            v-model="examForm.title"
-            placeholder="请输入考试名称"
-            maxlength="100"
-            show-word-limit
-          />
-        </el-form-item>
-
-        <el-form-item label="考试描述" prop="description">
-          <el-input
-            v-model="examForm.description"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入考试描述，可选"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
-
-        <el-form-item label="考试时间" prop="timeRange">
-          <el-date-picker
-            v-model="examForm.timeRange"
-            type="datetimerange"
-            range-separator="至"
-            start-placeholder="开始时间"
-            end-placeholder="结束时间"
-            format="YYYY-MM-DD HH:mm"
-            value-format="YYYY-MM-DD HH:mm:ss"
-            :default-time="defaultTimeRange"
-            style="width: 100%;"
-          />
-        </el-form-item>
-
-        <el-form-item label="考试时长" prop="duration">
-          <el-slider v-model="examForm.duration" :min="30" :max="180" :step="10" show-stops />
-          <span class="slider-value">{{ examForm.duration }} 分钟</span>
-        </el-form-item>
-
-        <el-form-item label="及格分数" prop="passingScore">
-          <el-slider v-model="examForm.passingScore" :min="30" :max="100" :step="5" show-stops />
-          <span class="slider-value">{{ examForm.passingScore }} 分</span>
-        </el-form-item>
-
-        <el-form-item label="参考学员">
-          <el-select
-            v-model="examForm.assignedStudentIds"
-            multiple
-            filterable
-            collapse-tags
-            collapse-tags-tooltip
-            placeholder="不选择则默认全体学员可参加"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="student in students"
-              :key="student.id"
-              :label="`${student.real_name}（${student.username}）`"
-              :value="student.id"
-            />
-          </el-select>
-          <div class="field-tip">留空表示全体学生可参加；选择后仅名单内学员可见并可开始考试。</div>
-        </el-form-item>
-      </el-card>
-
-      <el-card class="form-section" shadow="never">
-        <template #header>
-          <span>选题设置（共需要选择 50 道题）</span>
-        </template>
-
-        <el-form-item label="选题方式">
-          <el-radio-group v-model="selectionType">
-            <el-radio label="manual">手动选题</el-radio>
-            <el-radio label="random">随机选题</el-radio>
-          </el-radio-group>
-        </el-form-item>
-
-        <template v-if="selectionType === 'random'">
-          <el-form-item label="题目类别">
-            <el-checkbox-group v-model="examForm.selectedCategories">
-              <el-checkbox v-for="(name, key) in categoryNames" :key="key" :label="key">
-                {{ name }}
-              </el-checkbox>
-            </el-checkbox-group>
-          </el-form-item>
-
-          <el-form-item>
-            <el-button
-              type="primary"
-              :disabled="examForm.selectedCategories.length === 0"
-              @click="generateRandomQuestions"
-            >
-              生成随机题目
-            </el-button>
-            <span class="tip-text">将从选中的类别中随机选择 50 道题。</span>
-          </el-form-item>
-        </template>
-
-        <template v-else>
-          <el-form-item label="筛选条件">
-            <el-select
-              v-model="filter.category"
-              placeholder="题目类别"
-              clearable
-              style="width: 180px; margin-right: 10px;"
-            >
-              <el-option
-                v-for="(name, key) in categoryNames"
-                :key="key"
-                :label="name"
-                :value="key"
-              />
-            </el-select>
-            <el-select
-              v-model="filter.type"
-              placeholder="题目类型"
-              clearable
-              style="width: 180px; margin-right: 10px;"
-            >
-              <el-option label="选择题" value="choice" />
-              <el-option label="判断题" value="truefalse" />
-              <el-option label="填空题" value="fill" />
-            </el-select>
-            <el-button type="primary" @click="fetchQuestions">筛选</el-button>
-          </el-form-item>
-
-          <div class="question-selector">
-            <div class="selector-header">
-              <span>可选题目（共 {{ filteredQuestions.length }} 道）</span>
-              <span>已选择 {{ selectedQuestionIds.length }} / 50</span>
-            </div>
-
-            <el-table
-              ref="questionTable"
-              :data="filteredQuestions"
-              height="400"
-              @selection-change="handleSelectionChange"
-            >
-              <el-table-column type="selection" width="55" />
-              <el-table-column label="题目" min-width="320">
-                <template #default="{ row }">
-                  <div class="question-preview">
-                    <el-tag size="small" :type="getQuestionTypeColor(row.type)" style="margin-right: 8px;">
-                      {{ getQuestionTypeLabel(row.type) }}
-                    </el-tag>
-                    <el-tag size="small" type="info" style="margin-right: 8px;">
-                      {{ categoryNames[row.category] || row.category }}
-                    </el-tag>
-                    <span class="question-text">{{ truncate(row.question, 50) }}</span>
-                  </div>
-                </template>
-              </el-table-column>
-            </el-table>
+          <div class="card-header">
+            <span>基础设置</span>
+            <el-tag type="info" effect="plain">{{ isEditMode ? '编辑模式' : '新建模式' }}</el-tag>
           </div>
         </template>
 
-        <div v-if="selectedQuestionIds.length > 0" class="selected-preview">
-          <h4>已选题目（{{ selectedQuestionIds.length }} 道）</h4>
-          <el-tag
-            v-for="id in selectedQuestionIds.slice(0, 10)"
-            :key="id"
-            size="small"
-            closable
-            style="margin: 0 8px 8px 0;"
-            @close="removeQuestion(id)"
-          >
-            题目 {{ id }}
-          </el-tag>
-          <el-tag v-if="selectedQuestionIds.length > 10" size="small" type="info">
-            还有 {{ selectedQuestionIds.length - 10 }} 道…
-          </el-tag>
-        </div>
+        <el-form
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          label-position="top"
+          class="exam-form"
+        >
+          <el-form-item label="考试名称" prop="title">
+            <el-input v-model="form.title" maxlength="100" show-word-limit placeholder="例如：Docker 运维基础测验" />
+          </el-form-item>
+
+          <el-form-item label="考试说明" prop="description">
+            <el-input
+              v-model="form.description"
+              type="textarea"
+              :rows="4"
+              maxlength="500"
+              show-word-limit
+              placeholder="可填写考试范围、作答须知和参考建议。"
+            />
+          </el-form-item>
+
+          <div class="form-row two-columns">
+            <el-form-item label="开始时间" prop="startTime">
+              <el-date-picker
+                v-model="form.startTime"
+                type="datetime"
+                placeholder="选择开始时间"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                style="width: 100%"
+              />
+            </el-form-item>
+            <el-form-item label="结束时间" prop="endTime">
+              <el-date-picker
+                v-model="form.endTime"
+                type="datetime"
+                placeholder="选择结束时间"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </div>
+
+          <div class="form-row three-columns">
+            <el-form-item label="考试时长（分钟）" prop="duration">
+              <el-input-number v-model="form.duration" :min="10" :max="240" :step="5" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="及格分数" prop="passingScore">
+              <el-input-number v-model="form.passingScore" :min="0" :max="100" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="选题方式" prop="isRandom">
+              <el-select v-model="form.isRandom" style="width: 100%">
+                <el-option :value="false" label="手动选题" />
+                <el-option :value="true" label="随机组卷" />
+              </el-select>
+            </el-form-item>
+          </div>
+
+          <el-form-item label="参考学员">
+            <el-select
+              v-model="form.assignedStudentIds"
+              multiple
+              filterable
+              clearable
+              collapse-tags
+              collapse-tags-tooltip
+              placeholder="不选择则默认全部学员可参加"
+              style="width: 100%"
+            >
+              <el-option
+                v-for="student in students"
+                :key="student.id"
+                :label="`${student.realName || student.username}（${student.username}）`"
+                :value="student.id"
+              />
+            </el-select>
+            <div class="field-tip">留空表示全体学员可见并可参加考试。</div>
+          </el-form-item>
+
+          <div class="submit-actions">
+            <el-button @click="goBack">取消</el-button>
+            <el-button type="primary" :loading="saving" @click="submitForm">
+              {{ isEditMode ? '保存修改' : '创建考试' }}
+            </el-button>
+          </div>
+        </el-form>
       </el-card>
 
-      <div class="footer-actions">
-        <el-button
-          type="primary"
-          size="large"
-          :loading="submitting"
-          :disabled="selectedQuestionIds.length !== 50"
-          @click="submitExam"
+      <el-card class="question-card" shadow="never">
+        <template #header>
+          <div class="card-header">
+            <span>题库与组卷</span>
+            <el-tag :type="selectedQuestionIds.length === 50 ? 'success' : 'warning'" effect="dark">
+              已选 {{ selectedQuestionIds.length }} / 50 题
+            </el-tag>
+          </div>
+        </template>
+
+        <div class="toolbar">
+          <el-select v-model="selectedCategories" multiple collapse-tags collapse-tags-tooltip placeholder="筛选分类" style="min-width: 260px">
+            <el-option
+              v-for="category in availableCategories"
+              :key="category"
+              :label="getCategoryName(category)"
+              :value="category"
+            />
+          </el-select>
+
+          <el-select v-model="selectedType" clearable placeholder="题型" style="width: 150px">
+            <el-option label="全部题型" value="" />
+            <el-option label="选择题" value="choice" />
+            <el-option label="判断题" value="truefalse" />
+            <el-option label="填空题" value="fill" />
+          </el-select>
+
+          <el-input v-model="keyword" clearable placeholder="搜索题目内容" style="min-width: 260px" />
+
+          <div class="toolbar-actions">
+            <el-button @click="clearSelectedQuestions">清空已选</el-button>
+            <el-button type="primary" @click="autoPickQuestions">
+              {{ form.isRandom ? '重新随机组卷' : '从当前筛选补齐 50 题' }}
+            </el-button>
+          </div>
+        </div>
+
+        <div class="summary-strip">
+          <div class="summary-item">
+            <span class="summary-label">当前筛选题数</span>
+            <strong>{{ filteredQuestions.length }}</strong>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">分类</span>
+            <strong>{{ selectedCategories.length ? selectedCategories.map(getCategoryName).join(' / ') : '全部' }}</strong>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">组卷方式</span>
+            <strong>{{ form.isRandom ? '随机组卷' : '手动选题' }}</strong>
+          </div>
+        </div>
+
+        <el-table
+          ref="questionTableRef"
+          :data="filteredQuestions"
+          height="560"
+          class="question-table"
+          @selection-change="handleSelectionChange"
         >
-          {{ isEdit ? '保存修改' : '创建考试' }}
-        </el-button>
-        <el-button size="large" @click="goBack">取消</el-button>
-        <span v-if="selectedQuestionIds.length !== 50" class="tip-text error">
-          需要选择 50 道题，当前已选 {{ selectedQuestionIds.length }} 道
-        </span>
-      </div>
-    </el-form>
+          <el-table-column type="selection" width="52" :selectable="isSelectableQuestion" />
+          <el-table-column label="题目" min-width="420">
+            <template #default="{ row }">
+              <div class="question-text">{{ row.question }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="分类" width="150">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{ getCategoryName(row.category) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="题型" width="110">
+            <template #default="{ row }">
+              {{ getQuestionTypeLabel(row.type) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="ID" width="90" prop="id" />
+        </el-table>
+      </el-card>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ElMessage, type FormInstance, type FormRules, type TableInstance } from 'element-plus'
 import api from '../../../api'
 
-type SelectionMode = 'manual' | 'random'
-
-interface QuestionItem {
+type QuestionRecord = {
   id: number
-  type: string
   category: string
+  type: string
   question: string
 }
 
-interface StudentItem {
+type StudentRecord = {
   id: number
   username: string
-  real_name: string
-  role: string
+  realName?: string
+  role?: string
 }
 
-interface ExamDetail {
-  title: string
-  description: string
-  startTime: string
-  endTime: string
-  duration: number
-  passingScore: number
-  isRandom: boolean
-  categories?: string[]
-  questionIds?: number[]
-  assignedStudentIds?: number[]
-}
-
-const route = useRoute()
 const router = useRouter()
-const isEdit = computed(() => !!route.params.id)
-
+const route = useRoute()
 const formRef = ref<FormInstance>()
-const questionTable = ref<any>()
-const submitting = ref(false)
-const students = ref<StudentItem[]>([])
+const questionTableRef = ref<TableInstance>()
+const saving = ref(false)
+const loadingQuestions = ref(false)
+const allQuestions = ref<QuestionRecord[]>([])
+const students = ref<StudentRecord[]>([])
+const keyword = ref('')
+const selectedType = ref('')
+const selectedCategories = ref<string[]>([])
+const selectedQuestionIds = ref<number[]>([])
 
-const defaultTimeRange = [
-  new Date(2000, 0, 1, 9, 0, 0),
-  new Date(2000, 0, 1, 17, 0, 0),
-]
+const examId = computed(() => Number(route.params.id))
+const isEditMode = computed(() => Number.isFinite(examId.value) && examId.value > 0)
+
+const form = reactive({
+  title: '',
+  description: '',
+  startTime: '',
+  endTime: '',
+  duration: 60,
+  passingScore: 60,
+  isRandom: false,
+  assignedStudentIds: [] as number[],
+})
+
+const rules: FormRules = {
+  title: [{ required: true, message: '请输入考试名称', trigger: 'blur' }],
+  startTime: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
+  endTime: [{ required: true, message: '请选择结束时间', trigger: 'change' }],
+  duration: [{ required: true, message: '请输入考试时长', trigger: 'change' }],
+  passingScore: [{ required: true, message: '请输入及格分数', trigger: 'change' }],
+}
 
 const categoryNames: Record<string, string> = {
   file: '文件管理',
@@ -270,192 +255,199 @@ const categoryNames: Record<string, string> = {
   search: '搜索查找',
   shell: 'Shell 脚本',
   mysql: 'MySQL 学习',
+  nginx: 'Nginx 学习',
+  redis: 'Redis 学习',
+  docker: 'Docker 学习',
 }
 
-const examForm = reactive({
-  title: '',
-  description: '',
-  timeRange: [] as string[],
-  duration: 60,
-  passingScore: 60,
-  selectedCategories: [] as string[],
-  assignedStudentIds: [] as number[],
+const availableCategories = computed(() => {
+  const categories = new Set(allQuestions.value.map((question) => question.category))
+  return Array.from(categories)
 })
 
-const selectionType = ref<SelectionMode>('manual')
-const filter = reactive({
-  category: '',
-  type: '',
-})
-
-const allQuestions = ref<QuestionItem[]>([])
-const filteredQuestions = ref<QuestionItem[]>([])
-const selectedQuestionIds = ref<number[]>([])
-
-const rules: FormRules = {
-  title: [{ required: true, message: '请输入考试名称', trigger: 'blur' }],
-  timeRange: [{ required: true, message: '请选择考试时间', trigger: 'change' }],
-  duration: [{ required: true, message: '请设置考试时长', trigger: 'change' }],
-}
-
-function getQuestionTypeColor(type: string): string {
-  const colors: Record<string, string> = {
-    choice: 'primary',
-    truefalse: 'success',
-    fill: 'warning',
-  }
-  return colors[type] || 'info'
-}
-
-function getQuestionTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    choice: '选择题',
-    truefalse: '判断题',
-    fill: '填空题',
-  }
-  return labels[type] || type
-}
-
-function truncate(text: string, length: number): string {
-  if (text.length <= length) return text
-  return `${text.slice(0, length)}...`
-}
-
-async function fetchStudents() {
-  try {
-    const res = await api.get('/users')
-    students.value = (res.data || []).filter((user: StudentItem) => user.role === 'student')
-  } catch {
-    ElMessage.error('获取学生列表失败')
-  }
-}
-
-async function fetchQuestions() {
-  try {
-    const res = await api.get('/linux-exam/question-bank', {
-      params: { category: filter.category || undefined, type: filter.type || undefined },
-    })
-    allQuestions.value = res.data.data
-    filteredQuestions.value = allQuestions.value
-    syncTableSelection()
-  } catch {
-    ElMessage.error('获取题库失败')
-  }
-}
-
-function handleSelectionChange(selection: QuestionItem[]) {
-  const filteredQuestionIds = new Set(filteredQuestions.value.map((item) => item.id))
-  const preserved = selectedQuestionIds.value.filter((id) => !filteredQuestionIds.has(id))
-  selectedQuestionIds.value = [...preserved, ...selection.map((item) => item.id)]
-}
-
-function generateRandomQuestions() {
-  if (examForm.selectedCategories.length === 0) {
-    ElMessage.warning('请至少选择一个类别')
-    return
-  }
-
-  const categoryQuestions = allQuestions.value.filter((question) =>
-    examForm.selectedCategories.includes(question.category),
-  )
-
-  if (categoryQuestions.length < 50) {
-    ElMessage.warning(`选中的类别中只有 ${categoryQuestions.length} 道题，不足 50 道`)
-    return
-  }
-
-  const shuffled = [...categoryQuestions].sort(() => Math.random() - 0.5)
-  selectedQuestionIds.value = shuffled.slice(0, 50).map((question) => question.id)
-  ElMessage.success('已随机选择 50 道题目')
-}
-
-function removeQuestion(id: number) {
-  selectedQuestionIds.value = selectedQuestionIds.value.filter((questionId) => questionId !== id)
-  syncTableSelection()
-}
-
-function syncTableSelection() {
-  if (!questionTable.value?.clearSelection) return
-
-  questionTable.value.clearSelection()
-  filteredQuestions.value.forEach((question) => {
-    if (selectedQuestionIds.value.includes(question.id)) {
-      questionTable.value.toggleRowSelection(question, true)
+const filteredQuestions = computed(() => {
+  return allQuestions.value.filter((question) => {
+    if (selectedCategories.value.length && !selectedCategories.value.includes(question.category)) {
+      return false
     }
+    if (selectedType.value && question.type !== selectedType.value) {
+      return false
+    }
+    if (keyword.value.trim()) {
+      return question.question.toLowerCase().includes(keyword.value.trim().toLowerCase())
+    }
+    return true
   })
+})
+
+function getCategoryName(category: string) {
+  return categoryNames[category] || category
 }
 
-async function submitExam() {
-  if (selectedQuestionIds.value.length !== 50) {
-    ElMessage.warning('请选择 50 道题目')
-    return
-  }
-
-  if (!formRef.value) return
-
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-
-  submitting.value = true
-  try {
-    const payload = {
-      title: examForm.title,
-      description: examForm.description,
-      questionIds: selectedQuestionIds.value,
-      categories: selectionType.value === 'random' ? examForm.selectedCategories : [],
-      assignedStudentIds: examForm.assignedStudentIds,
-      isRandom: selectionType.value === 'random',
-      startTime: examForm.timeRange[0],
-      endTime: examForm.timeRange[1],
-      duration: examForm.duration,
-      passingScore: examForm.passingScore,
-    }
-
-    if (isEdit.value) {
-      await api.put(`/linux-exam/exams/${route.params.id}`, payload)
-      ElMessage.success('修改成功')
-    } else {
-      await api.post('/linux-exam/exams', payload)
-      ElMessage.success('创建成功')
-    }
-
-    router.push('/admin/exams')
-  } catch {
-    ElMessage.error(isEdit.value ? '修改失败' : '创建失败')
-  } finally {
-    submitting.value = false
-  }
+function getQuestionTypeLabel(type: string) {
+  if (type === 'choice') return '选择题'
+  if (type === 'truefalse') return '判断题'
+  if (type === 'fill') return '填空题'
+  return type
 }
 
 function goBack() {
   router.push('/admin/exams')
 }
 
-async function loadExamDetail() {
-  if (!isEdit.value) return
+function clearSelectedQuestions() {
+  selectedQuestionIds.value = []
+  syncTableSelection()
+}
 
-  try {
-    const res = await api.get(`/linux-exam/exams/${route.params.id}`)
-    const exam: ExamDetail = res.data.data
+function isSelectableQuestion(row: QuestionRecord) {
+  return selectedQuestionIds.value.includes(row.id) || selectedQuestionIds.value.length < 50
+}
 
-    examForm.title = exam.title
-    examForm.description = exam.description || ''
-    examForm.timeRange = [exam.startTime, exam.endTime]
-    examForm.duration = exam.duration
-    examForm.passingScore = exam.passingScore
-    examForm.assignedStudentIds = exam.assignedStudentIds || []
-    selectionType.value = exam.isRandom ? 'random' : 'manual'
-    examForm.selectedCategories = exam.categories || []
-    selectedQuestionIds.value = exam.questionIds || []
+function handleSelectionChange(rows: QuestionRecord[]) {
+  const visibleIds = new Set(filteredQuestions.value.map((item) => item.id))
+  const hiddenSelected = selectedQuestionIds.value.filter((id) => !visibleIds.has(id))
+  const nextIds = [...hiddenSelected, ...rows.map((row) => row.id)]
+  selectedQuestionIds.value = Array.from(new Set(nextIds)).slice(0, 50)
+
+  if (rows.length + hiddenSelected.length > 50) {
+    ElMessage.warning('考试必须固定为 50 题，多余题目已自动忽略。')
     syncTableSelection()
-  } catch {
-    ElMessage.error('加载考试详情失败')
   }
 }
 
+function autoPickQuestions() {
+  const source = [...filteredQuestions.value]
+  if (source.length < 50) {
+    ElMessage.warning('当前筛选条件下不足 50 题，请放宽分类或题型后再试。')
+    return
+  }
+
+  const shuffled = source.sort(() => Math.random() - 0.5).slice(0, 50)
+  selectedQuestionIds.value = shuffled.map((item) => item.id)
+  syncTableSelection()
+  ElMessage.success(form.isRandom ? '已重新随机生成 50 题试卷' : '已从当前筛选条件中补齐 50 题')
+}
+
+async function syncTableSelection() {
+  await nextTick()
+  const table = questionTableRef.value
+  if (!table) return
+
+  table.clearSelection()
+  const selectedSet = new Set(selectedQuestionIds.value)
+  filteredQuestions.value.forEach((row) => {
+    if (selectedSet.has(row.id)) {
+      table.toggleRowSelection(row, true)
+    }
+  })
+}
+
+async function fetchStudents() {
+  try {
+    const res = await api.get('/users', { params: { page: 1, limit: 500 } })
+    const rows = res.data?.data || []
+    students.value = rows
+      .filter((item: StudentRecord) => item.role !== 'admin')
+      .map((item: StudentRecord) => ({
+        id: item.id,
+        username: item.username,
+        realName: item.realName,
+        role: item.role,
+      }))
+  } catch {
+    ElMessage.error('获取学员列表失败')
+  }
+}
+
+async function fetchQuestionBank() {
+  loadingQuestions.value = true
+  try {
+    const res = await api.get('/linux-exam/question-bank')
+    allQuestions.value = res.data?.data || []
+  } catch {
+    ElMessage.error('获取题库失败')
+  } finally {
+    loadingQuestions.value = false
+  }
+}
+
+async function fetchExamDetail() {
+  if (!isEditMode.value) return
+
+  try {
+    const res = await api.get(`/linux-exam/exams/${examId.value}`)
+    const detail = res.data?.data
+    if (!detail) return
+
+    form.title = detail.title || ''
+    form.description = detail.description || ''
+    form.startTime = detail.startTime || ''
+    form.endTime = detail.endTime || ''
+    form.duration = Number(detail.duration || 60)
+    form.passingScore = Number(detail.passingScore || 60)
+    form.isRandom = Boolean(detail.isRandom)
+    form.assignedStudentIds = Array.isArray(detail.assignedStudentIds) ? detail.assignedStudentIds : []
+    selectedQuestionIds.value = Array.isArray(detail.questionIds) ? detail.questionIds : []
+    selectedCategories.value = Array.isArray(detail.categories) ? detail.categories : []
+    await syncTableSelection()
+  } catch {
+    ElMessage.error('获取考试详情失败')
+  }
+}
+
+async function submitForm() {
+  if (!formRef.value) return
+
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    if (selectedQuestionIds.value.length !== 50) {
+      ElMessage.warning('考试必须固定为 50 题，请先补齐题目。')
+      return
+    }
+
+    saving.value = true
+    try {
+      const payload = {
+        title: form.title,
+        description: form.description,
+        questionIds: selectedQuestionIds.value,
+        categories: selectedCategories.value.length
+          ? selectedCategories.value
+          : Array.from(new Set(allQuestions.value.filter((q) => selectedQuestionIds.value.includes(q.id)).map((q) => q.category))),
+        assignedStudentIds: form.assignedStudentIds,
+        isRandom: form.isRandom,
+        startTime: form.startTime,
+        endTime: form.endTime,
+        duration: form.duration,
+        passingScore: form.passingScore,
+      }
+
+      if (isEditMode.value) {
+        await api.put(`/linux-exam/exams/${examId.value}`, payload)
+        ElMessage.success('考试已更新')
+      } else {
+        await api.post('/linux-exam/exams', payload)
+        ElMessage.success('考试已创建')
+      }
+
+      goBack()
+    } catch (error: any) {
+      ElMessage.error(error.response?.data?.error || (isEditMode.value ? '更新考试失败' : '创建考试失败'))
+    } finally {
+      saving.value = false
+    }
+  })
+}
+
+watch([filteredQuestions, selectedQuestionIds], () => {
+  syncTableSelection()
+})
+
 onMounted(async () => {
-  await Promise.all([fetchStudents(), fetchQuestions()])
-  await loadExamDetail()
+  await Promise.all([fetchStudents(), fetchQuestionBank()])
+  await fetchExamDetail()
 })
 </script>
 
@@ -482,7 +474,7 @@ onMounted(async () => {
 
 .module-heading p {
   margin: 8px 0 0;
-  max-width: 720px;
+  max-width: 840px;
   color: #627089;
   font-size: 13px;
   line-height: 1.65;
@@ -493,92 +485,109 @@ onMounted(async () => {
   gap: 12px;
 }
 
-.exam-form {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+.layout-grid {
+  display: grid;
+  grid-template-columns: 400px minmax(0, 1fr);
+  gap: 20px;
 }
 
-.form-section {
+.form-card,
+.question-card {
   border-radius: 30px;
   border: 1px solid rgba(235, 240, 248, 0.92);
   background: #fff;
   box-shadow: 0 18px 34px rgba(148, 163, 184, 0.12);
 }
 
-.slider-value {
-  margin-left: 16px;
-  color: #3370ff;
-  font-weight: 500;
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.tip-text {
-  margin-left: 16px;
-  color: #909399;
-  font-size: 14px;
+.exam-form {
+  margin-top: 4px;
 }
 
-.tip-text.error {
-  color: #f56c6c;
+.form-row {
+  display: grid;
+  gap: 14px;
+}
+
+.two-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.three-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .field-tip {
   margin-top: 8px;
-  color: #909399;
-  font-size: 13px;
-  line-height: 1.5;
+  color: #7b8aa3;
+  font-size: 12px;
 }
 
-.question-selector {
-  border: 1px solid #e5eaf3;
-  border-radius: 22px;
-  padding: 16px;
-  margin-top: 16px;
-  background: rgba(248, 250, 252, 0.72);
-}
-
-.selector-header {
+.submit-actions {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  font-size: 14px;
-  color: #606266;
-}
-
-.question-preview {
-  display: flex;
-  align-items: center;
-}
-
-.question-text {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.selected-preview {
-  margin-top: 20px;
-  padding: 16px;
-  background: rgba(245, 247, 250, 0.88);
-  border-radius: 22px;
-}
-
-.selected-preview h4 {
-  margin: 0 0 12px;
-  color: #1f2329;
-}
-
-.footer-actions {
-  display: flex;
-  align-items: center;
+  justify-content: flex-end;
   gap: 12px;
+  margin-top: 10px;
 }
 
-:deep(.el-checkbox-group) {
+.toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.summary-item {
+  padding: 14px 16px;
+  border-radius: 20px;
+  background: rgba(248, 250, 252, 0.86);
+}
+
+.summary-label {
+  display: block;
+  color: #7b8aa3;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.summary-item strong {
+  color: #16233b;
+  font-size: 14px;
+}
+
+.question-text {
+  color: #16233b;
+  line-height: 1.6;
+}
+
+.question-table :deep(.el-table__row .el-checkbox.is-disabled) {
+  opacity: 0.45;
+}
+
+@media (max-width: 1200px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -587,9 +596,16 @@ onMounted(async () => {
     align-items: stretch;
   }
 
-  .footer-actions {
-    flex-direction: column;
-    align-items: flex-start;
+  .two-columns,
+  .three-columns,
+  .summary-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar-actions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>

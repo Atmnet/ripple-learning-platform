@@ -7,6 +7,11 @@ import {
   MYSQL_FILL_QUESTIONS,
   MYSQL_TRUE_FALSE_QUESTIONS,
 } from "./MySQLQuiz";
+import {
+  INFRA_CHOICE_QUESTIONS,
+  INFRA_FILL_QUESTIONS,
+  INFRA_TRUE_FALSE_QUESTIONS,
+} from "./InfraQuiz";
 
 export type QuestionType = "choice" | "truefalse" | "fill";
 
@@ -656,15 +661,15 @@ export function getAllQuestions(): QuizQuestion[] {
   const questions: QuizQuestion[] = [];
   let id = 1;
 
-  [...CHOICE_QUESTIONS, ...MYSQL_CHOICE_QUESTIONS].forEach(q => {
+  [...CHOICE_QUESTIONS, ...MYSQL_CHOICE_QUESTIONS, ...INFRA_CHOICE_QUESTIONS].forEach(q => {
     questions.push({ ...q, id: id++ } as QuizQuestion);
   });
 
-  [...TRUE_FALSE_QUESTIONS, ...MYSQL_TRUE_FALSE_QUESTIONS].forEach(q => {
+  [...TRUE_FALSE_QUESTIONS, ...MYSQL_TRUE_FALSE_QUESTIONS, ...INFRA_TRUE_FALSE_QUESTIONS].forEach(q => {
     questions.push({ ...q, id: id++ } as QuizQuestion);
   });
 
-  [...FILL_QUESTIONS, ...MYSQL_FILL_QUESTIONS].forEach(q => {
+  [...FILL_QUESTIONS, ...MYSQL_FILL_QUESTIONS, ...INFRA_FILL_QUESTIONS].forEach(q => {
     questions.push({ ...q, id: id++ } as QuizQuestion);
   });
 
@@ -695,4 +700,7 @@ export const TOTAL_QUESTIONS =
   FILL_QUESTIONS.length +
   MYSQL_CHOICE_QUESTIONS.length +
   MYSQL_TRUE_FALSE_QUESTIONS.length +
-  MYSQL_FILL_QUESTIONS.length;
+  MYSQL_FILL_QUESTIONS.length +
+  INFRA_CHOICE_QUESTIONS.length +
+  INFRA_TRUE_FALSE_QUESTIONS.length +
+  INFRA_FILL_QUESTIONS.length;

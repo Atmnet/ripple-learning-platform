@@ -118,8 +118,7 @@ export function getQuizQuestions(req: Request, res: Response): void {
     const result = learningService.getQuizQuestions(
       req.query.count as string | undefined,
       req.query.category as string | undefined,
-      req.query.type as string | undefined,
-      req.query.all === 'true'
+      req.query.type as string | undefined
     )
     sendSuccess(res, result.data, { total: result.total })
   } catch (error) {

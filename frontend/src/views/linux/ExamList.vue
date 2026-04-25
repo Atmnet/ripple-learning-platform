@@ -212,6 +212,9 @@ const categoryNames: Record<string, string> = {
   search: '搜索查找',
   shell: 'Shell 脚本',
   mysql: 'MySQL 学习',
+  nginx: 'Nginx 学习',
+  redis: 'Redis 学习',
+  docker: 'Docker 学习',
 }
 
 function getCategoryName(key: string) {

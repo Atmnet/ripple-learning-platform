@@ -132,7 +132,7 @@ export function getPracticeStats() {
 
 // ============ Quiz APIs ============
 
-export function getQuizQuestions(params?: { count?: number; category?: string; type?: string; all?: boolean }) {
+export function getQuizQuestions(params?: { count?: number | 'all'; category?: string; type?: string }) {
   return api.get('/linux/quiz/questions', { params })
 }
 

@@ -227,7 +227,7 @@ onBeforeUnmount(() => {
 }
 
 .sidebar-footer {
-  margin-top: auto;
+  margin-top: 4px;
 }
 
 .sidebar-item {
