@@ -1,0 +1,168 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ripple-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ripple_learning_platform}
+      MYSQL_USER: ${MYSQL_USER:-ripple_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ripple_password}
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    command: --default-authentication-plugin=mysql_native_password --default-time-zone=+08:00
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: ripple-redis
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: ripple-backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${MYSQL_DATABASE:-ripple_learning_platform}
+      - DB_USER=${MYSQL_USER:-ripple_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-ripple_password}
+      - DB_CONNECT_RETRIES=${DB_CONNECT_RETRIES:-30}
+      - DB_CONNECT_DELAY_MS=${DB_CONNECT_DELAY_MS:-2000}
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_key_here}
+      - JWT_EXPIRES_IN=24h
+      - FRONTEND_URL=https://www.atomai.cloud
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_CONNECT_TIMEOUT_MS=${REDIS_CONNECT_TIMEOUT_MS:-5000}
+      - BOS_ENDPOINT=${BOS_ENDPOINT:-http://bj.bcebos.com}
+      - BOS_ACCESS_KEY=${BOS_ACCESS_KEY:-}
+      - BOS_SECRET_KEY=${BOS_SECRET_KEY:-}
+      - BOS_BUCKET=${BOS_BUCKET:-}
+      - BOS_CUSTOM_DOMAIN=${BOS_CUSTOM_DOMAIN:-}
+      - TZ=Asia/Shanghai
+      - TRUST_PROXY=1
+    ports:
+      - "3001:3001"
+    volumes:
+      - ../backend/uploads:/app/uploads
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  ai-service:
+    build:
+      context: ../ai-service
+      dockerfile: Dockerfile
+    container_name: ripple-ai-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=${MYSQL_DATABASE:-ripple_learning_platform}
+      - DB_USER=${MYSQL_USER:-ripple_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-ripple_password}
+      - DB_CONNECT_RETRIES=${DB_CONNECT_RETRIES:-30}
+      - DB_CONNECT_DELAY_MS=${DB_CONNECT_DELAY_MS:-2000}
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_key_here}
+      - FRONTEND_URL=https://www.atomai.cloud
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - DEEPSEEK_SYSTEM_PROMPT=${DEEPSEEK_SYSTEM_PROMPT:-}
+      - TZ=Asia/Shanghai
+      - TRUST_PROXY=1
+    ports:
+      - "3002:3002"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: ripple-frontend
+    depends_on:
+      - backend
+      - ai-service
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./certs:/etc/nginx/ssl:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    restart: unless-stopped
+
+  linux-tutor:
+    build:
+      context: ../linux-tutor
+      dockerfile: Dockerfile
+    container_name: ripple-linux-tutor
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+      - TZ=Asia/Shanghai
+    ports:
+      - "5000:5000"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

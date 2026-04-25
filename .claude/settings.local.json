@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(cd /e/code/ripple-learning-platform/backend && npm run build 2>&1)",
+      "Bash(cd /e/code/ripple-learning-platform/backend && npx tsc --noEmit src/controllers/AssignmentController.ts src/routes/submissions.ts 2>&1)",
+      "Bash(true:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(cd:*)"
+    ]
+  }
+}

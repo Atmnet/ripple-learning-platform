@@ -1,0 +1,136 @@
+CREATE TABLE IF NOT EXISTS users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  real_name VARCHAR(50) NOT NULL,
+  role VARCHAR(20) NOT NULL DEFAULT 'student',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS daily_reports (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  content TEXT NOT NULL,
+  submit_date DATE NOT NULL,
+  reviewed_at DATETIME NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS assignments (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(200) NOT NULL,
+  description TEXT NULL,
+  deadline DATETIME NOT NULL,
+  file_url TEXT NULL,
+  created_by INT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  assignment_id INT NOT NULL,
+  user_id INT NOT NULL,
+  file_url TEXT NULL,
+  comment TEXT NULL,
+  grade INT NULL,
+  feedback TEXT NULL,
+  graded_by INT NULL,
+  submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  graded_at DATETIME NULL,
+  FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (graded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS documents (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(200) NOT NULL,
+  category VARCHAR(50) NOT NULL,
+  file_url VARCHAR(500) NOT NULL,
+  description TEXT NULL,
+  uploaded_by INT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS video_resources (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(200) NOT NULL,
+  category VARCHAR(50) NOT NULL,
+  description TEXT NULL,
+  embed_url VARCHAR(1000) NOT NULL,
+  source_name VARCHAR(100) NULL,
+  duration_text VARCHAR(50) NULL,
+  tags VARCHAR(500) NULL,
+  created_by INT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS daily_report_comments (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  report_id INT NOT NULL,
+  user_id INT NOT NULL,
+  content TEXT NOT NULL,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (report_id) REFERENCES daily_reports(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS linux_exams (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NULL,
+  question_ids JSON NOT NULL,
+  categories JSON NULL,
+  assigned_student_ids JSON NULL,
+  is_random BOOLEAN DEFAULT FALSE,
+  start_time DATETIME NOT NULL,
+  end_time DATETIME NOT NULL,
+  duration INT NOT NULL DEFAULT 60,
+  total_questions INT NOT NULL DEFAULT 50,
+  passing_score INT NOT NULL DEFAULT 60,
+  status ENUM('draft', 'published', 'ended') DEFAULT 'draft',
+  created_by INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS linux_student_exams (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  exam_id INT NOT NULL,
+  student_id INT NOT NULL,
+  start_time DATETIME NULL,
+  end_time DATETIME NULL,
+  score INT NULL,
+  correct_count INT DEFAULT 0,
+  wrong_count INT DEFAULT 0,
+  status ENUM('not_started', 'in_progress', 'completed', 'timeout') DEFAULT 'not_started',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (exam_id) REFERENCES linux_exams(id) ON DELETE CASCADE,
+  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_student_exam (exam_id, student_id)
+);
+
+CREATE TABLE IF NOT EXISTS linux_student_answers (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  student_exam_id INT NOT NULL,
+  question_id INT NOT NULL,
+  answer TEXT NULL,
+  is_correct BOOLEAN NULL,
+  correct_answer TEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (student_exam_id) REFERENCES linux_student_exams(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_student_answer (student_exam_id, question_id)
+);

@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ripple-mysql-dev
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: ripple_learning_platform
+      MYSQL_USER: ripple_user
+      MYSQL_PASSWORD: ripple_password
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    command: --default-authentication-plugin=mysql_native_password --default-time-zone=+08:00
+
+  redis:
+    image: redis:7-alpine
+    container_name: ripple-redis-dev
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: ripple-backend-dev
+    depends_on:
+      - mysql
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=ripple_learning_platform
+      - DB_USER=ripple_user
+      - DB_PASSWORD=ripple_password
+      - DB_CONNECT_RETRIES=30
+      - DB_CONNECT_DELAY_MS=2000
+      - JWT_SECRET=dev_jwt_secret_key
+      - JWT_EXPIRES_IN=24h
+      - FRONTEND_URL=http://localhost:3000
+      - TZ=Asia/Shanghai
+      - TRUST_PROXY=1
+    ports:
+      - "3001:3001"
+    volumes:
+      - ../backend/uploads:/app/uploads
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    command: npm run dev
+
+  ai-service:
+    build:
+      context: ../ai-service
+      dockerfile: Dockerfile
+    container_name: ripple-ai-service-dev
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=ripple_learning_platform
+      - DB_USER=ripple_user
+      - DB_PASSWORD=ripple_password
+      - DB_CONNECT_RETRIES=30
+      - DB_CONNECT_DELAY_MS=2000
+      - JWT_SECRET=dev_jwt_secret_key
+      - FRONTEND_URL=http://localhost:3000
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - DEEPSEEK_SYSTEM_PROMPT=${DEEPSEEK_SYSTEM_PROMPT:-}
+      - TZ=Asia/Shanghai
+      - TRUST_PROXY=1
+    ports:
+      - "3002:3002"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    command: npm run dev
+
+volumes:
+  mysql_dev_data:
